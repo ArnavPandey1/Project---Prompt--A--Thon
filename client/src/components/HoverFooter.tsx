@@ -148,7 +148,7 @@ function HoverFooter() {
                     </div>
 
                     {/* Copyright */}
-                    <p className="text-center md:text-left">
+                    <p className="text-center md:text-left text-muted-foreground">
                         &copy; {new Date().getFullYear()} TimeMap. All rights reserved.
                     </p>
                 </div>

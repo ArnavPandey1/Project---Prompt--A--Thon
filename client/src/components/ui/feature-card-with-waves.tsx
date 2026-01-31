@@ -99,7 +99,7 @@ export function FeatureCardWithWaves({ title, description, badge = "Feature", cl
                 <div className="flex justify-between items-start mb-6">
                     <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 group-hover:bg-primary/20 transition-colors">
                         {/* Simulated Schema Visual */}
-                        <svg w-full h-full viewBox="0 0 24 24" fill="none" className="w-6 h-6 text-primary">
+                        <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6 text-primary">
                             <circle cx="6" cy="6" r="3" stroke="currentColor" strokeWidth="2" />
                             <circle cx="18" cy="18" r="3" stroke="currentColor" strokeWidth="2" />
                             <circle cx="18" cy="6" r="3" stroke="currentColor" strokeWidth="2" />

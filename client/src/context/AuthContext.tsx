@@ -1,14 +1,18 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { authAPI } from '../services/api';
 
 type User = {
+    id: string;
     email: string;
     name: string;
+    token: string;
 };
 
 type AuthContextType = {
     user: User | null;
     isAuthenticated: boolean;
-    login: (email: string) => void;
+    login: (email: string, password: string) => Promise<void>;
+    signup: (email: string, password: string, name?: string) => Promise<void>;
     logout: () => void;
     isLoading: boolean;
 };
@@ -20,7 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        // Simulate checking auth state on load
+        // Check for stored user on mount
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
             try {
@@ -32,10 +36,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
     }, []);
 
-    const login = (email: string) => {
-        const newUser = { email, name: email.split('@')[0] };
-        localStorage.setItem('user', JSON.stringify(newUser));
-        setUser(newUser);
+    const signup = async (email: string, password: string, name?: string) => {
+        const response = await authAPI.signup(email, password, name);
+        const userData = {
+            id: response.user.id,
+            email: response.user.email,
+            name: response.user.name,
+            token: response.token
+        };
+        localStorage.setItem('user', JSON.stringify(userData));
+        setUser(userData);
+    };
+
+    const login = async (email: string, password: string) => {
+        const response = await authAPI.login(email, password);
+        const userData = {
+            id: response.user.id,
+            email: response.user.email,
+            name: response.user.name,
+            token: response.token
+        };
+        localStorage.setItem('user', JSON.stringify(userData));
+        setUser(userData);
     };
 
     const logout = () => {
@@ -44,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout, isLoading }}>
+        <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, signup, logout, isLoading }}>
             {children}
         </AuthContext.Provider>
     );

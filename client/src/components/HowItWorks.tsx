@@ -21,7 +21,7 @@ const steps = [
 
 export function HowItWorks() {
     return (
-        <section className="w-full max-w-7xl mx-auto px-6 py-24 relative z-10">
+        <section className="w-full max-w-7xl mx-auto px-6 py-16 relative z-10">
             <div className="text-center mb-16">
                 <h2 className="text-3xl md:text-4xl font-bold mb-4">How TimeMap Works</h2>
                 <p className="text-muted-foreground max-w-2xl mx-auto">

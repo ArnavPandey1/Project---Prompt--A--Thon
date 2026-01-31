@@ -1,65 +1,196 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
-
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, Calendar as CalendarIcon, Check } from 'lucide-react';
+import { Plus, Trash2, Calendar as CalendarIcon, Check, Sparkles, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { taskAPI, aiAPI } from '../services/api';
 
 type Task = {
-    id: string;
+    _id: string;
     title: string;
+    description?: string;
     completed: boolean;
     priority: 'low' | 'medium' | 'high';
     dueDate: string;
+    estimatedTime?: number;
+    status: 'todo' | 'done';
 };
 
-const INITIAL_TASKS: Task[] = [
-    { id: '1', title: 'Review Marketing Deck', completed: false, priority: 'high', dueDate: '2023-10-25' },
-    { id: '2', title: 'Update Client Contract', completed: true, priority: 'medium', dueDate: '2023-10-24' },
-    { id: '3', title: 'Weekly Sync Prep', completed: false, priority: 'low', dueDate: '2023-10-26' },
-];
-
 export default function Tasks() {
-    const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
+    const [tasks, setTasks] = useState<Task[]>([]);
     const [newTask, setNewTask] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [aiLoading, setAiLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [aiReasoning, setAiReasoning] = useState('');
 
-    const addTask = (e: React.FormEvent) => {
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Fetch tasks on mount
+    useEffect(() => {
+        fetchTasks();
+    }, []);
+
+    const fetchTasks = async () => {
+        try {
+            setLoading(true);
+            const data = await taskAPI.getTasks();
+            setTasks(data);
+            setError('');
+        } catch (err: any) {
+            setError(err.message || 'Failed to load tasks');
+            console.error('Fetch tasks error:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const addTask = async (e: React.FormEvent) => {
         e.preventDefault();
+        console.log("Adding task:", newTask); // Debug log
         if (!newTask.trim()) return;
 
-        const task: Task = {
-            id: Math.random().toString(36).substr(2, 9),
-            title: newTask,
-            completed: false,
-            priority: 'medium',
-            dueDate: new Date().toISOString().split('T')[0],
-        };
+        try {
+            setIsSubmitting(true);
 
-        setTasks([task, ...tasks]);
-        setNewTask('');
+            // Attempt AI analysis for better defaults
+            let aiDefaults = { priority: 'medium', estimatedTime: 30 };
+            try {
+                const analysis = await aiAPI.analyzeTask(newTask);
+                console.log("AI Analysis:", analysis);
+                if (analysis) {
+                    aiDefaults.priority = analysis.priority || 'medium';
+                    aiDefaults.estimatedTime = analysis.estimatedTime || 30;
+                }
+            } catch (aiErr) {
+                console.warn("AI Analysis failed, using defaults", aiErr);
+            }
+
+            const task = await taskAPI.createTask({
+                title: newTask,
+                priority: aiDefaults.priority as 'low' | 'medium' | 'high',
+                estimatedTime: aiDefaults.estimatedTime,
+                dueDate: new Date().toISOString(),
+            });
+
+            setTasks([task, ...tasks]);
+            setNewTask('');
+            setError('');
+            console.log("Task added:", task);
+        } catch (err: any) {
+            console.error("Add task error:", err);
+            setError(err.message || 'Failed to create task');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
-    const toggleTask = (id: string) => {
-        setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+    const toggleTask = async (id: string) => {
+        const task = tasks.find(t => t._id === id);
+        if (!task) return;
+
+        try {
+            const updated = await taskAPI.updateTask(id, {
+                completed: !task.completed,
+                status: !task.completed ? 'done' : 'todo'
+            });
+
+            setTasks(tasks.map(t => t._id === id ? updated : t));
+            setError('');
+        } catch (err: any) {
+            setError(err.message || 'Failed to update task');
+        }
     };
 
-    const deleteTask = (id: string) => {
-        setTasks(tasks.filter(t => t.id !== id));
+    const deleteTask = async (id: string) => {
+        try {
+            await taskAPI.deleteTask(id);
+            setTasks(tasks.filter(t => t._id !== id));
+            setError('');
+        } catch (err: any) {
+            setError(err.message || 'Failed to delete task');
+        }
     };
+
+    const prioritizeTasks = async () => {
+        try {
+            setAiLoading(true);
+            setAiReasoning('');
+            const result = await aiAPI.prioritizeTasks();
+
+            setTasks(result.prioritizedTasks);
+            setAiReasoning(result.reasoning);
+            setError('');
+
+            // Auto-hide reasoning after 10 seconds
+            setTimeout(() => setAiReasoning(''), 10000);
+        } catch (err: any) {
+            setError(err.message || 'AI prioritization failed');
+        } finally {
+            setAiLoading(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="max-w-4xl mx-auto flex items-center justify-center min-h-[400px]">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+        );
+    }
 
     return (
         <div className="max-w-4xl mx-auto">
+            {/* Error Display */}
+            {error && (
+                <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-md">
+                    {error}
+                </div>
+            )}
+
+            {/* AI Reasoning Display */}
+            {aiReasoning && (
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="mb-4 p-4 bg-primary/10 border border-primary/20 rounded-md"
+                >
+                    <div className="flex items-start gap-2">
+                        <Sparkles className="w-5 h-5 text-primary mt-0.5" />
+                        <div>
+                            <p className="font-semibold text-sm mb-1">AI Prioritization</p>
+                            <p className="text-sm text-muted-foreground">{aiReasoning}</p>
+                        </div>
+                    </div>
+                </motion.div>
+            )}
+
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight mb-2">Task Manager</h1>
                     <p className="text-muted-foreground">Manage your detailed tasks and priorities.</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                     <span className="text-sm text-muted-foreground self-end mb-1">
                         {tasks.filter(t => t.completed).length}/{tasks.length} Completed
                     </span>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={prioritizeTasks}
+                        disabled={aiLoading || tasks.filter(t => !t.completed).length === 0}
+                        className="gap-2"
+                    >
+                        {aiLoading ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <Sparkles className="w-4 h-4" />
+                        )}
+                        AI Prioritize
+                    </Button>
                 </div>
             </div>
 
@@ -72,9 +203,13 @@ export default function Tasks() {
                             placeholder="Add a new task..."
                             className="flex-1 bg-background"
                         />
-                        <Button type="submit">
-                            <Plus className="w-4 h-4 mr-2" />
-                            Add Task
+                        <Button type="submit" disabled={isSubmitting || !newTask.trim()}>
+                            {isSubmitting ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                                <Plus className="w-4 h-4 mr-2" />
+                            )}
+                            {isSubmitting ? 'Adding...' : 'Add Task'}
                         </Button>
                     </form>
                 </CardContent>
@@ -84,7 +219,7 @@ export default function Tasks() {
                 <AnimatePresence mode="popLayout">
                     {tasks.map((task) => (
                         <motion.div
-                            key={task.id}
+                            key={task._id}
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95 }}
@@ -97,7 +232,7 @@ export default function Tasks() {
                                 <CardContent className="p-4 flex items-center gap-4">
                                     <SimpleCheckbox
                                         checked={task.completed}
-                                        onCheckedChange={() => toggleTask(task.id)}
+                                        onCheckedChange={() => toggleTask(task._id)}
                                     />
 
                                     <div className="flex-1 min-w-0">
@@ -127,7 +262,7 @@ export default function Tasks() {
                                         variant="ghost"
                                         size="icon"
                                         className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
-                                        onClick={() => deleteTask(task.id)}
+                                        onClick={() => deleteTask(task._id)}
                                     >
                                         <Trash2 className="w-4 h-4" />
                                     </Button>

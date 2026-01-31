@@ -5,7 +5,7 @@ export function FinalCTA() {
     const navigate = useNavigate();
 
     return (
-        <section className="w-full py-24 z-10 relative">
+        <section className="w-full py-16 z-10 relative">
             <CallToAction onClick={() => navigate('/signup')} />
         </section>
     );
